@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Peripheral Hub — Sales</title>
+  <style>
+    :root{
+      --bg:#071226; --card:#0b1220; --muted:#9aa4b2; --accent:#08a0ff; --text:#e6eef6;
+      --radius:10px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; background:linear-gradient(180deg,#071226 0%, #071827 100%);
+      color:var(--text); font-family:Inter, system-ui, Arial, sans-serif; -webkit-font-smoothing:antialiased;
+      padding:20px;
+    }
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#6ef0ff);display:flex;align-items:center;justify-content:center;color:#04202b;font-weight:800;text-decoration: none;}
+    .controls{display:flex;gap:8px;align-items:center}
+    .search{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--muted)}
+    .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:700;background:var(--accent);color:#04202b}
+    .btn.ghost{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.04)}
+    main{max-width:1200px;margin:0 auto}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:16px;border-radius:var(--radius);border:1px solid rgba(255,255,255,0.03)}
+    .panel{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    table{width:100%;border-collapse:collapse;font-size:0.95rem}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;vertical-align:middle}
+    th{color:var(--muted);font-weight:700}
+    td .small{display:block;color:var(--muted);font-size:0.85rem}
+    .actions{display:flex;gap:6px}
+    .summary{display:flex;gap:12px;margin:12px 0;color:var(--muted);font-weight:600}
+    .summary .item{background:rgba(255,255,255,0.02);padding:8px 12px;border-radius:8px}
+    .modal-back{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:none;align-items:center;justify-content:center;padding:18px}
+    .modal{width:100%;max-width:560px;background:#071226;border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.03)}
+    .field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+    .field input,.field select{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)}
+    footer{text-align:center;margin-top:18px;color:var(--muted)}
+    @media(max-width:720px){ .summary{flex-direction:column;gap:6px} .panel{flex-direction:column;align-items:stretch;gap:8px} }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo"><a href="index.html" class="logo">PH</a>
+</div>
+      <div>
+        <div style="font-weight:800">Peripheral Hub</div>
+        <div style="font-size:0.85rem;color:var(--muted)">Sales & Orders Management</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <input id="search" class="search" placeholder="Search by sale id, product, customer..." />
+      <button id="btn-new" class="btn">+ New Sale</button>
+      <button id="btn-export" class="btn ghost">Export CSV</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="panel">
+        <strong>Sales</strong>
+        <div class="summary" aria-hidden="false">
+          <div class="item">Total Sales: <span id="total-sales">0</span></div>
+          <div class="item">Total Qty: <span id="total-qty">0</span></div>
+          <div class="item">Revenue: <span id="total-rev">₹0.00</span></div>
+        </div>
+      </div>
+
+      <div style="overflow:auto;border-radius:8px">
+        <table id="sales-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th>Sale ID</th>
+              <th>Product</th>
+              <th>Qty</th>
+              <th>Unit (₹)</th>
+              <th>Total (₹)</th>
+              <th>Customer</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- modal -->
+  <div class="modal-back" id="modal-back" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h3 id="modal-title">New Sale</h3>
+
+      <div class="field">
+        <label>Sale ID</label>
+        <input id="s-id" placeholder="e.g., S-1001" />
+      </div>
+
+      <div class="field">
+        <label>Product (ID — Name)</label>
+        <input id="s-product" placeholder="e.g., MOU-001 — Wireless Mouse" />
+      </div>
+
+      <div class="row" style="display:flex;gap:8px">
+        <div class="field" style="flex:1">
+          <label>Quantity</label>
+          <input id="s-qty" type="number" min="1" value="1" />
+        </div>
+        <div class="field" style="width:150px">
+          <label>Unit Price (₹)</label>
+          <input id="s-price" type="number" min="0" step="0.01" value="0" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Customer</label>
+        <input id="s-customer" placeholder="Customer name or company" />
+      </div>
+
+      <div class="field">
+        <label>Date</label>
+        <input id="s-date" type="date" />
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="save-sale" class="btn">Save</button>
+        <button id="close-modal" class="btn ghost" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>&copy; 2025 Peripheral Hub</footer>
+
+  <script>
+    // keys and sample data
+    const SALES_KEY = 'ph_sales_v1';
+    const sampleSales = [
+      { id:'S-1001', product:'MOU-001 — Wireless Mouse', qty:2, price:599, customer:'A. Sharma', date: Date.now()-86400000 },
+      { id:'S-1002', product:'KBD-002 — Mechanical Keyboard', qty:1, price:3999, customer:'ByteStore', date: Date.now()-3600000 }
+    ];
+
+    // state & elements
+    let sales = load(SALES_KEY, sampleSales);
+    const tbody = document.querySelector('#sales-table tbody');
+    const totalSalesEl = document.getElementById('total-sales');
+    const totalQtyEl = document.getElementById('total-qty');
+    const totalRevEl = document.getElementById('total-rev');
+    const search = document.getElementById('search');
+    const btnNew = document.getElementById('btn-new');
+    const btnExport = document.getElementById('btn-export');
+    const modalBack = document.getElementById('modal-back');
+    const sId = document.getElementById('s-id');
+    const sProduct = document.getElementById('s-product');
+    const sQty = document.getElementById('s-qty');
+    const sPrice = document.getElementById('s-price');
+    const sCustomer = document.getElementById('s-customer');
+    const sDate = document.getElementById('s-date');
+    const saveSale = document.getElementById('save-sale');
+    const closeModal = document.getElementById('close-modal');
+
+    // helpers
+    function load(key, fallback){
+      try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : JSON.parse(JSON.stringify(fallback)); }
+      catch(e){ console.error(e); return JSON.parse(JSON.stringify(fallback)); }
+    }
+    function save(key, data){ localStorage.setItem(key, JSON.stringify(data)); }
+    function fmtR(n){ return '₹' + Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function escapeHtml(s=''){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    // render list and totals
+    function render(filter=''){
+      tbody.innerHTML = '';
+      const f = (filter||'').trim().toLowerCase();
+      const list = sales.filter(s => {
+        if (!f) return true;
+        return [s.id, s.product, s.customer].join(' ').toLowerCase().includes(f);
+      }).sort((a,b)=>b.date - a.date);
+
+      list.forEach((s, idx)=>{
+        const total = (Number(s.qty) * Number(s.price)).toFixed(2);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(s.id)}</td>
+          <td>${escapeHtml(s.product)}</td>
+          <td>${Number(s.qty)}</td>
+          <td>${fmtR(Number(s.price).toFixed(2))}</td>
+          <td>${fmtR(total)}</td>
+          <td>${escapeHtml(s.customer)}</td>
+          <td>${new Date(s.date).toLocaleString()}</td>
+          <td class="actions">
+            <button class="btn ghost" data-action="edit" data-index="${idx}">Edit</button>
+            <button class="btn" data-action="delete" data-index="${idx}">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      const totals = list.reduce((acc,s)=> {
+        acc.count++; acc.qty += Number(s.qty||0); acc.rev += Number(s.qty||0)*Number(s.price||0); return acc;
+      }, {count:0, qty:0, rev:0});
+      totalSalesEl.textContent = totals.count;
+      totalQtyEl.textContent = totals.qty;
+      totalRevEl.textContent = fmtR(totals.rev);
+    }
+
+    // modal behavior
+    let editing = -1;
+    function openModal(idx=-1){
+      editing = idx;
+      if (idx >= 0){
+        const s = sales[idx];
+        sId.value = s.id; sProduct.value = s.product; sQty.value = s.qty; sPrice.value = s.price; sCustomer.value = s.customer;
+        sDate.value = new Date(s.date).toISOString().slice(0,10);
+        document.getElementById('modal-title').textContent = 'Edit Sale';
+      } else {
+        sId.value = 'S-' + (Date.now().toString().slice(-6));
+        sProduct.value = ''; sQty.value = 1; sPrice.value = 0; sCustomer.value = '';
+        sDate.value = new Date().toISOString().slice(0,10);
+        document.getElementById('modal-title').textContent = 'New Sale';
+      }
+      modalBack.style.display = 'flex'; modalBack.setAttribute('aria-hidden','false');
+      sProduct.focus();
+    }
+    function closeModalFn(){ modalBack.style.display='none'; modalBack.setAttribute('aria-hidden','true'); editing = -1; }
+
+    // wire events
+    btnNew.addEventListener('click', ()=> openModal(-1));
+    closeModal.addEventListener('click', closeModalFn);
+    window.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalFn(); });
+
+    saveSale.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const id = sId.value.trim(), product = sProduct.value.trim(), qty = Number(sQty.value)||0, price = Number(sPrice.value)||0, customer = sCustomer.value.trim(), dateVal = sDate.value;
+      if (!id || !product || qty <= 0){ alert('Provide sale id, product and quantity'); return; }
+      const record = { id, product, qty, price, customer, date: dateVal ? new Date(dateVal).getTime() : Date.now() };
+      if (editing >= 0) sales[editing] = record; else sales.unshift(record);
+      save(SALES_KEY, sales);
+      render(search.value);
+      closeModalFn();
+    });
+
+    // table actions (edit/delete)
+    tbody.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button'); if (!btn) return;
+      const action = btn.dataset.action; const idx = Number(btn.dataset.index);
+      if (action === 'edit') openModal(idx);
+      if (action === 'delete') {
+        if (!confirm('Delete this sale?')) return;
+        sales.splice(idx,1); save(SALES_KEY,sales); render(search.value);
+      }
+    });
+
+    // search & export
+    search.addEventListener('input', ()=> render(search.value));
+    btnExport.addEventListener('click', ()=>{
+      const headers = ['Sale ID','Product','Qty','Unit Price (₹)','Total (₹)','Customer','Date'];
+      const rows = sales.map(s => [s.id, s.product, s.qty, Number(s.price).toFixed(2), (s.qty*s.price).toFixed(2), s.customer, new Date(s.date).toLocaleString()]);
+      const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'sales.csv'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // init
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+// ...existing code...
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Support — Peripheral Hub</title>
+  <style>
+    :root{
+      --bg:#071226; --panel:#0b1220; --muted:#9aa4b2; --accent:#08a0ff; --success:#18b486;
+      --danger:#ff6b6b; --text:#e6eef6; --radius:10px; --glass:rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:linear-gradient(180deg,#071226,#061425);color:var(--text);font-family:Inter,system-ui,Arial}
+    header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:linear-gradient(90deg,rgba(8,160,255,0.04),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:44px;height:44px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#6ef0ff);display:flex;align-items:center;justify-content:center;color:#04202b;font-weight:800}
+    nav a{color:var(--muted);text-decoration:none;margin-left:14px}
+    main{max-width:1100px;margin:20px auto;padding:0 18px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:16px;border-radius:10px;margin-bottom:14px}
+    .controls{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+    .search{padding:8px 12px;border-radius:8px;border:1px solid var(--glass);background:transparent;color:var(--muted);min-width:240px}
+    .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;background:var(--accent);color:#04202b;font-weight:700}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+    .filters{display:flex;gap:8px;align-items:center}
+    .list{display:flex;flex-direction:column;gap:10px}
+    .query{display:flex;justify-content:space-between;gap:12px;padding:12px;border-radius:8px;background:var(--panel);align-items:flex-start;border:1px solid rgba(255,255,255,0.02)}
+    .left{display:flex;gap:12px;align-items:flex-start;flex:1}
+    .avatar{width:48px;height:48px;border-radius:8px;background:#071826;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:700}
+    .meta{flex:1}
+    .meta h4{margin:0 0 6px}
+    .meta .muted{font-size:0.9rem;color:var(--muted)}
+    .actions{display:flex;gap:8px;align-items:center}
+    .status{padding:6px 8px;border-radius:8px;font-weight:700;font-size:0.9rem}
+    .status.open{background:rgba(8,160,255,0.1);color:var(--accent);border:1px solid rgba(8,160,255,0.12)}
+    .status.resolved{background:var(--success);color:#04202b}
+    .details{margin-top:8px;color:var(--muted);font-size:0.95rem}
+    .modal-back{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:60}
+    .modal{background:#071226;padding:16px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);max-width:760px;width:100%}
+    .modal h3{margin:0 0 8px}
+    .modal .field{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+    .modal textarea{min-height:100px;padding:8px;border-radius:8px;border:1px solid var(--glass);background:transparent;color:var(--text)}
+    footer{text-align:center;padding:16px;color:var(--muted);margin-top:20px}
+    @media(max-width:720px){ .left{flex-direction:column} .actions{align-self:flex-end} .search{min-width:140px} }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">PH</div>
+      <div>
+        <div style="font-weight:800">Peripheral Hub — Admin</div>
+        <div style="font-size:0.9rem;color:var(--muted)">Support center</div>
+      </div>
+    </div>
+    <nav>
+      <a href="../admin/index.html">Dashboard</a>
+      <a href="../admin/support.html" style="color:var(--accent);margin-left:10px">Support</a>
+      <a href="../admin/myorders.html" style="margin-left:10px">Orders</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <strong style="font-size:1.05rem">All user queries</strong>
+          <div class="muted small">View and manage support tickets submitted by users</div>
+        </div>
+        <div class="controls">
+          <input id="q-search" class="search" placeholder="Search by name, email, subject or message" />
+          <div class="filters">
+            <button class="btn ghost" data-filter="all">All</button>
+            <button class="btn ghost" data-filter="open">Open</button>
+            <button class="btn ghost" data-filter="resolved">Resolved</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="list" class="list"></div>
+  </main>
+
+  <div class="modal-back" id="modal-back" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 id="modal-title">View Query</h3>
+      <div id="modal-body"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button id="reply-btn" class="btn">Reply</button>
+        <button id="resolve-btn" class="btn ghost">Mark Resolved</button>
+        <button id="close-modal" class="btn ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>&copy; 2025 Peripheral Hub — Admin</footer>
+
+  <script>
+    const STORAGE_KEY = 'ph_support_queries_v1';
+    let queries = loadQueries();
+
+    function loadQueries(){
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          const sample = [
+            { id:'TCK-1001', name:'Rohit K', email:'rohit@example.com', subject:'Keyboard warranty', message:'My keyboard stopped working after 2 months. Warranty steps?', date: Date.now()-86400000, status:'open', replies:[] },
+            { id:'TCK-1002', name:'Meera P', email:'meera@example.com', subject:'Shipping delay', message:'Order not delivered even after 10 days', date: Date.now()-172800000, status:'resolved', replies:[{by:'admin', text:'Refund initiated', date: Date.now()-86400000}] }
+          ];
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(sample));
+          return sample;
+        }
+        return JSON.parse(raw);
+      } catch(e) { console.error(e); return []; }
+    }
+
+    function saveQueries(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(queries)); }
+
+    // utilities
+    function fmtDate(ts){ return new Date(ts).toLocaleString(); }
+    function esc(s=''){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // render list with optional filter/search
+    function renderList(filter='all', q=''){
+      const container = document.getElementById('list');
+      container.innerHTML = '';
+      const term = (q||'').toLowerCase().trim();
+      const list = queries.filter(t => {
+        if (filter !== 'all' && t.status !== filter) return false;
+        if (!term) return true;
+        return (t.name + ' ' + t.email + ' ' + t.subject + ' ' + t.message + ' ' + (t.replies||[]).map(r=>r.text).join(' ')).toLowerCase().includes(term);
+      }).sort((a,b)=>b.date - a.date);
+
+      if (!list.length) {
+        container.innerHTML = '<div class="card" style="text-align:center"><div class="muted">No tickets found</div></div>';
+        return;
+      }
+
+      list.forEach(ticket=>{
+        const div = document.createElement('div');
+        div.className = 'query';
+        div.innerHTML = `
+          <div class="left">
+            <div class="avatar">${esc(ticket.name.split(' ').map(s=>s[0]||'').slice(0,2).join(''))}</div>
+            <div class="meta">
+              <h4>${esc(ticket.subject)}</h4>
+              <div class="muted">${esc(ticket.name)} • ${esc(ticket.email)} • <span class="small">${fmtDate(ticket.date)}</span></div>
+              <div class="details">${esc(ticket.message).slice(0,200)}${ticket.message.length>200?'…':''}</div>
+            </div>
+          </div>
+          <div class="actions">
+            <div class="status ${ticket.status==='resolved'?'resolved':'open'}">${ticket.status.toUpperCase()}</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+              <button class="btn" data-action="view" data-id="${ticket.id}">View</button>
+              <button class="btn ghost" data-action="quick-reply" data-id="${ticket.id}">Quick reply</button>
+            </div>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    // modal and interactions
+    let currentId = null;
+    const modalBack = document.getElementById('modal-back');
+    const modalBody = document.getElementById('modal-body');
+    const modalTitle = document.getElementById('modal-title');
+
+    function openModal(id){
+      currentId = id;
+      const t = queries.find(x=>x.id===id);
+      if (!t) return;
+      modalTitle.textContent = `Ticket ${t.id} — ${t.subject}`;
+      modalBody.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:12px">
+          <div><strong>${esc(t.name)}</strong> • <span class="muted">${esc(t.email)}</span></div>
+          <div class="muted small">${fmtDate(t.date)}</div>
+        </div>
+        <div style="margin-top:12px">${esc(t.message)}</div>
+        <div style="margin-top:12px">
+          <strong>Replies</strong>
+          <div>${(t.replies||[]).map(r=>`<div style="margin-top:8px;padding:8px;border-radius:6px;background:rgba(255,255,255,0.02)"><div class="muted small">${r.by} • ${fmtDate(r.date)}</div><div style="margin-top:6px">${esc(r.text)}</div></div>`).join('') || '<div class="muted small" style="margin-top:8px">No replies yet</div>'}</div>
+        </div>
+      `;
+      modalBack.style.display = 'flex'; modalBack.setAttribute('aria-hidden','false');
+    }
+
+    function closeModal(){ modalBack.style.display='none'; modalBack.setAttribute('aria-hidden','true'); currentId = null; }
+
+    document.getElementById('close-modal').addEventListener('click', closeModal);
+
+    // reply and resolve
+    document.getElementById('reply-btn').addEventListener('click', ()=>{
+      if (!currentId) return;
+      const text = prompt('Enter reply text (demo):');
+      if (!text) return;
+      const t = queries.find(x=>x.id===currentId);
+      t.replies = t.replies || [];
+      t.replies.push({ by:'admin', text, date: Date.now() });
+      t.status = 'open';
+      saveQueries(); renderList(activeFilter, document.getElementById('q-search').value); openModal(currentId);
+      alert('Reply saved (demo). Reply is stored in localStorage.');
+    });
+
+    document.getElementById('resolve-btn').addEventListener('click', ()=>{
+      if (!currentId) return;
+      const t = queries.find(x=>x.id===currentId);
+      t.status = 'resolved';
+      saveQueries(); renderList(activeFilter, document.getElementById('q-search').value); openModal(currentId);
+    });
+
+    // quick reply button handler in list
+    document.body.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+      if (action === 'view'){ openModal(id); return; }
+      if (action === 'quick-reply'){
+        const text = prompt('Quick reply (demo):');
+        if (!text) return;
+        const t = queries.find(x=>x.id===id);
+        t.replies = t.replies || [];
+        t.replies.push({ by:'admin', text, date: Date.now() });
+        saveQueries(); renderList(activeFilter, document.getElementById('q-search').value);
+        alert('Quick reply saved.');
+      }
+    });
+
+    // search & filters
+    let activeFilter = 'all';
+    document.querySelectorAll('[data-filter]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        activeFilter = b.dataset.filter;
+        renderList(activeFilter, document.getElementById('q-search').value);
+      });
+    });
+
+    document.getElementById('q-search').addEventListener('input', (e)=>{
+      renderList(activeFilter, e.target.value);
+    });
+
+    // initialize render
+    renderList();
+
+    // expose small helper for testing in console
+    window._phSupport = { queries, save: saveQueries, reload: ()=>{ queries = loadQueries(); renderList(); } };
+  </script>
+</body>
+</html>
+// ...existing code...

@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Peripheral Hub — Inventory & Orders</title>
+  <style>
+    :root{
+      --bg:#071226; --card:#0b1220; --muted:#9aa4b2; --accent:#08a0ff; --success:#18b486;
+      --danger:#ff5c5c; --glass: rgba(255,255,255,0.03); --radius:10px; --text:#e6eef6;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:linear-gradient(180deg,#071226 0%,#071827 100%);color:var(--text);font-family:Inter,system-ui,Arial;padding:20px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:44px;height:44px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#6ef0ff);display:flex;align-items:center;justify-content:center;color:#04202b;font-weight:800;font-family:Orbitron,monospace;text-decoration: none;}
+    h1{margin:0;font-size:1.2rem}
+    .layout{display:grid;grid-template-columns:1fr 420px;gap:16px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:var(--radius);padding:14px;border:1px solid rgba(255,255,255,0.03)}
+    .controls{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+    .search{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:var(--text)}
+    table{width:100%;border-collapse:collapse;font-size:0.95rem}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+    th{color:var(--muted)}
+    .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:600;background:var(--accent);color:#04202b}
+    .btn.ghost{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.04)}
+    .btn.warn{background:var(--danger);color:#fff}
+    .qty.low{color:var(--danger);font-weight:700}
+    .qty.ok{color:var(--success);font-weight:700}
+    .small{display:block;color:var(--muted);font-size:0.85rem}
+    .panel-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .orders-list{max-height:520px;overflow:auto}
+    .modal-back{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:none;align-items:center;justify-content:center;padding:18px}
+    .modal{width:100%;max-width:560px;background:#071226;border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.03)}
+    .field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+    .field input,.field select,.field textarea{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)}
+    .row{display:flex;gap:10px}
+    footer{margin-top:18px;text-align:center;color:var(--muted);font-size:0.9rem}
+    @media(max-width:920px){ .layout{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo"><a href="index.html" class="logo">PH</a>
+</div>
+      <div>
+        <h1>Peripheral Hub — Inventory</h1>
+        <div class="small">Manage stock, create restock orders and view customer requests</div>
+      </div>
+    </div>
+    <div>
+      <button id="load-sample" class="btn ghost">Load Sample</button>
+      <button id="export-inv" class="btn">Export Inventory</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="card">
+      <div class="panel-title">
+        <strong>Inventory</strong>
+        <div class="controls">
+          <input id="search" class="search" placeholder="Search by Product ID, name or category" />
+          <button id="add-item" class="btn ghost">+ Add</button>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="overflow:auto;border-radius:8px">
+        <table id="inv-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th>Product ID</th>
+              <th>Product</th>
+              <th>Category</th>
+              <th>Qty</th>
+              <th>Unit Price (₹)</th>
+              <th>Total (₹)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="card">
+      <div class="panel-title"><strong>Order Requests</strong>
+        <div><button id="export-orders" class="btn ghost">Export</button></div>
+      </div>
+
+      <div class="orders-list" id="orders-list" aria-live="polite">
+        <!-- orders injected here -->
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0">
+
+      <div>
+        <strong>Create Restock Order</strong>
+        <p class="small">Order more items from supplier</p>
+        <div class="field">
+          <label>Product</label>
+          <select id="restock-product"></select>
+        </div>
+        <div class="field">
+          <label>Quantity</label>
+          <input id="restock-qty" type="number" min="1" value="1" />
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="create-restock" class="btn">Create Order</button>
+          <button id="cancel-restock" class="btn ghost">Reset</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Modal: Add / Edit Inventory or Order More -->
+  <div class="modal-back" id="modal-back" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h3 id="modal-title">Add Item</h3>
+
+      <div class="field">
+        <label>Product ID</label>
+        <input id="m-pid" placeholder="e.g., MOU-001" />
+      </div>
+      <div class="field">
+        <label>Product Name</label>
+        <input id="m-name" placeholder="e.g., Wireless Mouse" />
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>Category</label>
+          <select id="m-cat">
+            <option>Mouse</option><option>Keyboard</option><option>Monitor</option><option>Accessory</option>
+          </select>
+        </div>
+        <div class="field" style="width:120px">
+          <label>Qty</label>
+          <input id="m-qty" type="number" min="0" value="1" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>Unit Price (₹)</label>
+          <input id="m-price" type="number" min="0" step="0.01" value="0" />
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <button id="save-item" class="btn">Save</button>
+          <button id="close-modal" class="btn ghost" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>&copy; 2025 Peripheral Hub</footer>
+
+  <script>
+    // storage keys & sample
+    const INV_KEY = 'ph_inventory_v1';
+    const ORD_KEY = 'ph_orders_v1';
+    const sample = [
+      { pid:'MOU-001', name:'Wireless Mouse', category:'Mouse', qty:45, price:599, reorder:10 },
+      { pid:'KBD-002', name:'Mechanical Keyboard', category:'Keyboard', qty:8, price:3999, reorder:5 },
+      { pid:'MON-003', name:'24" IPS Monitor', category:'Monitor', qty:4, price:8999, reorder:6 },
+      { pid:'CAB-010', name:'HDMI Cable 2m', category:'Accessory', qty:120, price:199, reorder:20 }
+    ];
+
+    // state
+    let inventory = load(INV_KEY, sample);
+    let orders = load(ORD_KEY, []);
+
+    // elements
+    const tbody = document.querySelector('#inv-table tbody');
+    const ordersList = document.getElementById('orders-list');
+    const search = document.getElementById('search');
+    const addBtn = document.getElementById('add-item');
+    const loadSampleBtn = document.getElementById('load-sample');
+    const modalBack = document.getElementById('modal-back');
+    const mPid = document.getElementById('m-pid');
+    const mName = document.getElementById('m-name');
+    const mCat = document.getElementById('m-cat');
+    const mQty = document.getElementById('m-qty');
+    const mPrice = document.getElementById('m-price');
+    const saveItem = document.getElementById('save-item');
+    const closeModal = document.getElementById('close-modal');
+    const restockProduct = document.getElementById('restock-product');
+    const restockQty = document.getElementById('restock-qty');
+    const createRestock = document.getElementById('create-restock');
+    const cancelRestock = document.getElementById('cancel-restock');
+    const exportInv = document.getElementById('export-inv');
+    const exportOrders = document.getElementById('export-orders');
+
+    // helpers
+    function load(key, fallback){ try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(fallback)); } catch(e){ console.error(e); return JSON.parse(JSON.stringify(fallback)); } }
+    function save(key, data){ localStorage.setItem(key, JSON.stringify(data)); }
+    function formatR(n){ return '₹' + Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+    // render inventory
+    function renderInventory(filter=''){
+      tbody.innerHTML = '';
+      const f = filter.trim().toLowerCase();
+      inventory.filter(it => {
+        if (!f) return true;
+        return (it.pid+' '+it.name+' '+it.category).toLowerCase().includes(f);
+      }).forEach((item, idx) => {
+        const total = (Number(item.qty) * Number(item.price)).toFixed(2);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(item.pid)}</td>
+          <td><strong>${escapeHtml(item.name)}</strong><div class="small">${escapeHtml(item.category)}</div></td>
+          <td>${escapeHtml(item.category)}</td>
+          <td class="qty ${Number(item.qty) < (item.reorder ?? 5) ? 'low' : 'ok'}">${Number(item.qty)}</td>
+          <td>${formatR(item.price)}</td>
+          <td>${formatR(total)}</td>
+          <td>
+            <button class="btn ghost" data-action="edit" data-index="${idx}">Edit</button>
+            <button class="btn" data-action="order-more" data-index="${idx}">Order More</button>
+            <button class="btn warn" data-action="delete" data-index="${idx}">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      populateRestockSelect();
+    }
+
+    function escapeHtml(str=''){ return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+
+    // render orders
+    function renderOrders(){
+      ordersList.innerHTML = '';
+      if (!orders.length) { ordersList.innerHTML = '<div class="small">No order requests</div>'; return; }
+      orders.slice().reverse().forEach((o, idx) => {
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.style.marginBottom = '10px';
+        el.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:start">
+            <div>
+              <strong>${escapeHtml(o.customerName || 'Customer')}</strong>
+              <div class="small">${escapeHtml(o.contact || '')} • ${escapeHtml(o.pid)}</div>
+            </div>
+            <div class="small">${new Date(o.ts).toLocaleString()}</div>
+          </div>
+          <div style="margin-top:8px">
+            <div class="small">Qty: <strong>${o.qty}</strong></div>
+            <div class="small">Note: ${escapeHtml(o.note || '')}</div>
+            <div style="margin-top:8px;display:flex;gap:8px">
+              ${o.status === 'pending' ? `<button class="btn" data-action="fulfill" data-order="${o.id}">Fulfill</button>
+              <button class="btn ghost" data-action="contact" data-order="${o.id}">Contact</button>
+              <button class="btn warn" data-action="cancel" data-order="${o.id}">Cancel</button>` : `<span class="small">Status: ${o.status}</span>`}
+            </div>
+          </div>
+        `;
+        ordersList.appendChild(el);
+      });
+    }
+
+    // event: table actions
+    tbody.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const idx = Number(btn.dataset.index);
+      if (action === 'edit') openModalFor(idx);
+      if (action === 'delete') {
+        if (!confirm('Delete this product?')) return;
+        inventory.splice(idx,1); save(INV_KEY,inventory); renderInventory(search.value); renderOrders();
+      }
+      if (action === 'order-more') {
+        // open quick order modal prefilled
+        const it = inventory[idx];
+        createOrderRequest({ pid: it.pid, qty: Math.max(1, Math.ceil(it.reorder ?? 5 - it.qty)), autoOpen:true });
+      }
+    });
+
+    // orders actions (delegate)
+    ordersList.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const oid = btn.dataset.order;
+      const oi = orders.findIndex(o => o.id === oid);
+      if (oi === -1) return;
+      if (action === 'fulfill') {
+        const o = orders[oi];
+        // find product and reduce qty (simulate sale/shipment)
+        const p = inventory.find(it => it.pid === o.pid);
+        if (p) {
+          p.qty = Math.max(0, Number(p.qty) - Number(o.qty));
+          save(INV_KEY, inventory);
+        }
+        orders[oi].status = 'fulfilled';
+        save(ORD_KEY, orders);
+        renderInventory(search.value); renderOrders();
+      } else if (action === 'cancel') {
+        if (!confirm('Cancel this order request?')) return;
+        orders[oi].status = 'cancelled';
+        save(ORD_KEY, orders);
+        renderOrders();
+      } else if (action === 'contact') {
+        alert('Contact details: ' + (orders[oi].contact || 'No contact provided'));
+      }
+    });
+
+    // modal handling for add/edit
+    let editingIndex = -1;
+    function openModalFor(idx = -1){
+      editingIndex = idx;
+      if (idx >= 0) {
+        const it = inventory[idx];
+        mPid.value = it.pid; mName.value = it.name; mCat.value = it.category; mQty.value = it.qty; mPrice.value = it.price;
+        document.getElementById('modal-title').textContent = 'Edit Item';
+      } else {
+        mPid.value = ''; mName.value = ''; mCat.value = 'Mouse'; mQty.value = 1; mPrice.value = 0;
+        document.getElementById('modal-title').textContent = 'Add Item';
+      }
+      modalBack.style.display = 'flex'; modalBack.setAttribute('aria-hidden','false');
+      mPid.focus();
+    }
+    function closeModalFn(){ modalBack.style.display='none'; modalBack.setAttribute('aria-hidden','true'); editingIndex=-1; }
+
+    addBtn.addEventListener('click', (e)=>{ e.preventDefault(); openModalFor(-1); });
+    closeModal.addEventListener('click', (e)=>{ e.preventDefault(); closeModalFn(); });
+    window.addEventListener('keydown', (e)=> { if (e.key === 'Escape') closeModalFn(); });
+
+    saveItem.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const pid = mPid.value.trim(), name = mName.value.trim(), cat = mCat.value, qty = Number(mQty.value)||0, price = Number(mPrice.value)||0;
+      if (!pid || !name) { alert('Provide Product ID and Name'); return; }
+      const rec = { pid, name, category:cat, qty, price, reorder:5 };
+      if (editingIndex >= 0) inventory[editingIndex] = rec; else inventory.unshift(rec);
+      save(INV_KEY, inventory);
+      renderInventory(search.value);
+      closeModalFn();
+    });
+
+    // create order request (customer)
+    function createOrderRequest({ pid=null, qty=1, customerName='', contact='', note='', autoOpen=false } = {}){
+      // if autoOpen true -> create request immediately (used by Order More button)
+      if (!pid && !autoOpen) {
+        // open a simple form could be implemented; for now prompt
+        pid = prompt('Enter Product ID to request:');
+        if (!pid) return;
+      }
+      if (autoOpen) {
+        const id = 'o_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+        orders.push({ id, pid, qty: Number(qty), customerName: 'Request', contact:'', note:'Restock request', status:'pending', ts: Date.now() });
+        save(ORD_KEY, orders); renderOrders();
+        alert('Order request created.');
+        return;
+      }
+      // show a quick form prompt for demo
+      const name = prompt('Your name:', customerName || '');
+      if (!name) return;
+      const phone = prompt('Contact (phone/email):', contact || '');
+      const q = prompt('Quantity:', String(qty || 1));
+      const nd = prompt('Note (optional):', note || '');
+      const id = 'o_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+      orders.push({ id, pid, qty: Number(q)||1, customerName: name, contact: phone, note: nd, status: 'pending', ts: Date.now() });
+      save(ORD_KEY, orders);
+      renderOrders();
+      alert('Order request sent. The team will review it.');
+    }
+
+    // restock create (supplier order)
+    createRestock.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const pid = restockProduct.value;
+      const qty = Number(restockQty.value) || 0;
+      if (!pid || qty <= 0) { alert('Select product and enter quantity'); return; }
+      // create supplier order - here convert to an "order" entry with supplier tag
+      const id = 's_' + Date.now();
+      orders.push({ id, pid, qty, customerName: 'Supplier Order', contact:'supplier@vendor', note:'Restock from supplier', status:'ordered', ts: Date.now() });
+      save(ORD_KEY, orders);
+      renderOrders();
+      alert('Restock order created.');
+    });
+
+    cancelRestock.addEventListener('click', (e)=>{ e.preventDefault(); restockQty.value = 1; restockProduct.selectedIndex = 0; });
+
+    // export helpers
+    exportInv.addEventListener('click', ()=>{
+      const headers = ['Product ID','Product','Category','Qty','Unit Price (₹)','Total (₹)'];
+      const rows = inventory.map(it => [it.pid, it.name, it.category, it.qty, it.price.toFixed(2), (it.qty*it.price).toFixed(2)]);
+      downloadCSV('inventory.csv', [headers, ...rows]);
+    });
+    exportOrders.addEventListener('click', ()=>{
+      const headers = ['Order ID','Product ID','Qty','Requester','Contact','Note','Status','Timestamp'];
+      const rows = orders.map(o => [o.id, o.pid, o.qty, o.customerName||'', o.contact||'', o.note||'', o.status, new Date(o.ts).toLocaleString()]);
+      downloadCSV('orders.csv', [headers, ...rows]);
+    });
+
+    function downloadCSV(filename, rows){
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+    }
+
+    // helpers
+    function populateRestockSelect(){
+      restockProduct.innerHTML = '';
+      inventory.forEach(it => {
+        const opt = document.createElement('option'); opt.value = it.pid; opt.textContent = `${it.pid} — ${it.name}`;
+        restockProduct.appendChild(opt);
+      });
+    }
+
+    function seedSample(){
+      if (!confirm('Load sample inventory? This will overwrite current inventory.')) return;
+      inventory = JSON.parse(JSON.stringify(sample));
+      save(INV_KEY, inventory);
+      renderInventory();
+    }
+
+    // quick UI wiring
+    loadSampleBtn.addEventListener('click', (e)=>{ e.preventDefault(); seedSample(); });
+    search.addEventListener('input', ()=> renderInventory(search.value));
+    document.getElementById('inv-table').addEventListener('click', (e)=>{
+      const btn = e.target.closest('button'); if (!btn) return;
+    });
+
+    // initialize
+    renderInventory();
+    renderOrders();
+
+  </script>
+</body>
+</html>

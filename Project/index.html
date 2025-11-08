@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Peripheral Stock Management</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#08a0ff; --success:#18b486;
+      --danger:#ff5c5c; --glass: rgba(255,255,255,0.03); --radius:12px;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; background:linear-gradient(180deg,#071226 0%, #071827 100%);
+      color:#e6eef6; -webkit-font-smoothing:antialiased; display:flex; flex-direction:column;
+    }
+    header{
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
+      padding:18px 24px; background:linear-gradient(90deg, rgba(8,160,255,0.08), transparent);
+      border-bottom:1px solid rgba(255,255,255,0.03);
+    }
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{
+      width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#6ef0ff);
+      display:flex;align-items:center;justify-content:center;color:#04202b;font-weight:800;font-family:Orbitron,monospace;
+      box-shadow:0 6px 18px rgba(8,160,255,0.08);
+    }
+    nav a{color:var(--muted);text-decoration:none;margin:0 8px;font-size:0.95rem}
+    nav a.active{color:var(--accent);font-weight:600}
+    main{width:100%;max-width:1200px;margin:28px auto;padding:18px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:18px}
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.03); padding:18px;border-radius:var(--radius);
+      display:flex;flex-direction:column;gap:10px;
+    }
+    .card h3{margin:0;font-size:0.95rem;color:var(--muted);font-weight:600}
+    .card .value{font-size:1.6rem;font-weight:700;color:#fff}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    .btn{
+      padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-weight:600;background:var(--accent);
+      color:#04202b; box-shadow:0 6px 18px rgba(8,160,255,0.08);
+    }
+    .btn.ghost{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.04)}
+    .controls{display:flex;gap:10px;align-items:center}
+    .search{
+      background:var(--glass);border:1px solid rgba(255,255,255,0.03);padding:8px 12px;border-radius:10px;color:var(--muted);
+      min-width:180px;
+    }
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:12px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.95rem}
+    th{color:var(--muted);font-weight:600}
+    td .small{display:block;color:var(--muted);font-size:0.85rem}
+    .qty.low{color:var(--danger);font-weight:700}
+    .qty.ok{color:var(--success);font-weight:700}
+    .table-wrap{overflow:auto;border-radius:8px}
+    footer{padding:18px;text-align:center;color:var(--muted);font-size:0.9rem}
+
+    /* modal */
+    .modal-back{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:none;align-items:center;justify-content:center;padding:18px}
+    .modal{width:100%;max-width:520px;background:#071226;border-radius:12px;padding:18px;border:1px solid rgba(255,255,255,0.03)}
+    .modal h4{margin:0 0 12px}
+    .field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+    .field input,.field select{padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#e6eef6}
+    .row{display:flex;gap:10px}
+    @media (max-width:600px){ header{flex-direction:column;align-items:flex-start} .controls{width:100%;justify-content:space-between} }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">PH</div>
+      <div>
+        <div style="font-weight:800">Peripheral Hub</div>
+        <div style="font-size:0.85rem;color:var(--muted)">Stock Management</div>
+      </div>
+    </div>
+
+    <nav>
+      <a href="#" class="active">Dashboard</a>
+      <a href="inventory.html">Inventory</a>
+      <a href="sales.html">Sales</a>
+      <a href="#">Reports</a>
+      <a href="#">Support</a>
+    </nav>
+
+    <div class="controls">
+      <input id="search" class="search" placeholder="Search by name or SKU" />
+      <button class="btn ghost" id="btn-add">+ Add Item</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="grid" aria-label="overview">
+      <div class="card">
+        <h3>Total SKUs</h3>
+        <div class="value" id="total-skus">0</div>
+        <div class="small">Total distinct products in stock</div>
+      </div>
+
+      <div class="card">
+        <h3>Items Low in Stock</h3>
+        <div class="value" id="low-stock">0</div>
+        <div class="small">Quantity below reorder threshold</div>
+      </div>
+
+      <div class="card">
+        <h3>Total Quantity</h3>
+        <div class="value" id="total-qty">0</div>
+        <div class="small">Sum of all item quantities</div>
+      </div>
+
+      <div class="card">
+        <h3>Estimated Inventory Value</h3>
+        <div class="value" id="total-value">₹0</div>
+        <div class="small">Based on current stock & unit price</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Inventory</h3>
+        <div class="actions">
+          <button class="btn" id="export-csv">Export CSV</button>
+          <button class="btn ghost" id="reset-sample">Load Sample</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="inventory-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th>Product ID</th>
+              <th>Product</th>
+              <th>Category</th>
+              <th>Qty</th>
+              <th>Unit Price</th>
+              <th>Total</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>&copy; 2025 Peripheral Hub — Manage your computer peripherals easily</footer>
+
+  <!-- Modal: Add / Edit -->
+  <div class="modal-back" id="modal-back" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h4 id="modal-title">Add New Item</h4>
+      <div class="field">
+        <label>SKU</label>
+        <input id="m-sku" placeholder="e.g., MOU-001" />
+      </div>
+      <div class="field">
+        <label>Product Name</label>
+        <input id="m-name" placeholder="e.g., Wireless Mouse" />
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>Category</label>
+          <select id="m-cat">
+            <option value="Mouse">Mouse</option>
+            <option value="Keyboard">Keyboard</option>
+            <option value="Monitor">Monitor</option>
+            <option value="Accessory">Accessory</option>
+          </select>
+        </div>
+        <div class="field" style="width:120px">
+          <label>Qty</label>
+          <input id="m-qty" type="number" min="0" value="1" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>Unit Price (₹)</label>
+          <input id="m-price" type="number" min="0" step="0.01" value="0" />
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <button class="btn" id="save-item">Save</button>
+          <button class="btn ghost" id="cancel-item" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Basic client-side inventory demo with persistence (localStorage)
+    const STORAGE_KEY = 'ph_inventory_v1';
+    const defaultSample = [
+      { sku:'MOU-001', name:'Wireless Mouse', category:'Mouse', qty:45, price:12.5, reorder:10 },
+      { sku:'KBD-002', name:'Mechanical Keyboard', category:'Keyboard', qty:8, price:79.99, reorder:5 },
+      { sku:'MON-003', name:'24" IPS Monitor', category:'Monitor', qty:4, price:129.99, reorder:6 },
+      { sku:'CAB-010', name:'HDMI Cable 2m', category:'Accessory', qty:120, price:5.5, reorder:20 }
+    ];
+
+    // state
+    let inventory = loadInventory();
+    let editingIndex = -1;
+
+    // elements
+    const tbody = document.querySelector('#inventory-table tbody');
+    const totalSkusEl = document.getElementById('total-skus');
+    const lowStockEl = document.getElementById('low-stock');
+    const totalQtyEl = document.getElementById('total-qty');
+    const totalValueEl = document.getElementById('total-value');
+    const btnAdd = document.getElementById('btn-add');
+    const modalBack = document.getElementById('modal-back');
+    const mSku = document.getElementById('m-sku');
+    const mName = document.getElementById('m-name');
+    const mCat = document.getElementById('m-cat');
+    const mQty = document.getElementById('m-qty');
+    const mPrice = document.getElementById('m-price');
+    const saveItem = document.getElementById('save-item');
+    const cancelItem = document.getElementById('cancel-item');
+    const resetSample = document.getElementById('reset-sample');
+    const exportCsv = document.getElementById('export-csv');
+    const searchInput = document.getElementById('search');
+
+    // load from storage or defaults
+    function loadInventory() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [...defaultSample];
+        return JSON.parse(raw);
+      } catch (e) {
+        console.error('Failed to load inventory', e);
+        return [...defaultSample];
+      }
+    }
+
+    function saveInventory() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+    }
+
+    function calculateTotals(list) {
+      const totalSkus = list.length;
+      const totalQty = list.reduce((s, it) => s + Number(it.qty || 0), 0);
+      const totalValue = list.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0);
+      const lowStock = list.filter(it => Number(it.qty || 0) < Number(it.reorder ?? 5)).length;
+      return { totalSkus, totalQty, totalValue, lowStock };
+    }
+
+    function renderTable(filter = '') {
+      tbody.innerHTML = '';
+      const filtered = inventory.filter(it => {
+        if (!filter) return true;
+        const f = filter.toLowerCase();
+        return (it.sku + ' ' + it.name + ' ' + it.category).toLowerCase().includes(f);
+      });
+      filtered.forEach((item, idx) => {
+        const tr = document.createElement('tr');
+        const total = (Number(item.qty) * Number(item.price)).toFixed(2);
+        tr.innerHTML = `
+          <td>{escapeHtml(item.sku)}</td>
+          <td><strong>${escapeHtml(item.name)}</strong><div class="small">${escapeHtml(item.category)}</div></td>
+          <td>${escapeHtml(item.category)}</td>
+          <td class="qty ${Number(item.qty) < (item.reorder ?? 5) ? 'low' : 'ok'}">${Number(item.qty)}</td>
+          <td>₹${Number(item.price).toFixed(2)}</td>
+          <td>₹${total}</td>
+          <td>
+            <button class="btn ghost" data-action="edit" data-index="${idx}">Edit</button>
+            <button class="btn" data-action="delete" data-index="${idx}">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      const t = calculateTotals(inventory);
+      totalSkusEl.textContent = t.totalSkus;
+      lowStockEl.textContent = t.lowStock;
+      totalQtyEl.textContent = t.totalQty;
+      totalValueEl.textContent = `₹${t.totalValue.toFixed(2)}`;
+    }
+
+    // escape to avoid injection
+    function escapeHtml(str = '') {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // modal controls
+    function openModal(editIndex = -1) {
+      editingIndex = editIndex;
+      if (editIndex >= 0) {
+        const it = inventory[editIndex];
+        mSku.value = it.sku;
+        mName.value = it.name;
+        mCat.value = it.category;
+        mQty.value = it.qty;
+        mPrice.value = it.price;
+        document.getElementById('modal-title').textContent = 'Edit Item';
+      } else {
+        mSku.value = '';
+        mName.value = '';
+        mCat.value = 'Mouse';
+        mQty.value = 1;
+        mPrice.value = 0;
+        document.getElementById('modal-title').textContent = 'Add New Item';
+      }
+      modalBack.style.display = 'flex';
+      modalBack.setAttribute('aria-hidden', 'false');
+      mSku.focus();
+    }
+
+    function closeModal() {
+      modalBack.style.display = 'none';
+      modalBack.setAttribute('aria-hidden', 'true');
+      editingIndex = -1;
+    }
+
+    // save new or update
+    saveItem.addEventListener('click', (e) => {
+      e.preventDefault();
+      const sku = mSku.value.trim();
+      const name = mName.value.trim();
+      const category = mCat.value;
+      const qty = Number(mQty.value) || 0;
+      const price = Number(mPrice.value) || 0;
+      const reorder = 5;
+
+      if (!sku || !name) {
+        alert('Please provide SKU and Product Name.');
+        return;
+      }
+
+      const record = { sku, name, category, qty, price, reorder };
+
+      if (editingIndex >= 0) {
+        inventory[editingIndex] = record;
+      } else {
+        inventory.unshift(record); // newest first
+      }
+      saveInventory();
+      renderTable(searchInput.value);
+      closeModal();
+    });
+
+    cancelItem.addEventListener('click', (e) => {
+      e.preventDefault();
+      closeModal();
+    });
+
+    // open add modal
+    btnAdd.addEventListener('click', (e) => {
+      e.preventDefault();
+      openModal(-1);
+    });
+
+    // table actions (edit/delete)
+    tbody.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const idx = Number(btn.dataset.index);
+      if (action === 'edit') {
+        openModal(idx);
+      } else if (action === 'delete') {
+        if (confirm('Delete this item?')) {
+          inventory.splice(idx, 1);
+          saveInventory();
+          renderTable(searchInput.value);
+        }
+      }
+    });
+
+    // reset sample
+    resetSample.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (!confirm('Load sample inventory? This will overwrite current data.')) return;
+      inventory = [...defaultSample];
+      saveInventory();
+      renderTable();
+    });
+
+    // export CSV
+    exportCsv.addEventListener('click', (e) => {
+      e.preventDefault();
+      const headers = ['SKU','Product','Category','Qty','Unit Price','Total'];
+      const rows = inventory.map(it => [
+        it.sku, it.name, it.category, it.qty, Number(it.price).toFixed(2), (Number(it.qty)*Number(it.price)).toFixed(2)
+      ]);
+      const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'inventory.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    
+
+    // search
+    searchInput.addEventListener('input', () => renderTable(searchInput.value));
+
+    // keyboard: Esc to close modal
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // initial render
+    renderTable();
+  </script>
+</body>
+</html>
